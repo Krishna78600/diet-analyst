@@ -1,2 +1,0 @@
-# diet-analyst
-diet analyzer
