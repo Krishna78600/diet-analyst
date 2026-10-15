@@ -8,11 +8,17 @@
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen">
 <header class="bg-slate-900 text-white py-5 px-6 shadow">
-  <h1 class="text-xl md:text-2xl font-bold">🥗 Smart Diet & Meal Log Analyst</h1>
+  <h1 class="text-xl md:text-2xl font-bold">Jadu-Curry 🥗 </h1>
   <p class="text-slate-400 text-sm">AI-powered macro tracking</p>
+
+<nav class="max-w-6xl mx-auto px-4 md:px-6 pt-4 flex gap-2">
+  <button id="tabCal" class="px-4 py-2 rounded-lg font-semibold bg-emerald-600 text-white">Calories</button>
+  <button id="tabRec" class="px-4 py-2 rounded-lg font-semibold bg-white text-slate-700 shadow">Recipes</button>  
+</nav>
+
 </header>
 
-<main class="max-w-6xl mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+<main id="calorieView" class="max-w-6xl mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
   <form id="form" class="bg-white rounded-xl shadow p-5 space-y-4">
     <div>
       <label class="block text-sm font-semibold mb-1">What did you eat today?</label>
@@ -61,6 +67,35 @@
         <ol id="recs" class="list-decimal ml-5 space-y-1 text-sm"></ol>
       </div>
     </div>
+  </section>
+</main>
+
+<main id="recipeView" class="hidden max-w-6xl mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <form id="recForm" class="bg-white rounded-xl shadow p-5 space-y-4">
+    <div>
+      <label class="block text-sm font-semibold mb-1">What ingredients do you have?</label>
+      <textarea id="ingredients" rows="6" required maxlength="1000"
+        placeholder="e.g. aloo, pyaz, tamatar, atta, paneer, dahi"
+        class="w-full border rounded-lg p-3 focus:ring-2 focus:ring-emerald-500 outline-none"></textarea>
+    </div>
+    <div>
+      <label class="block text-sm font-semibold mb-1">Servings</label>
+      <input id="servings" type="number" min="1" max="10" value="2" required class="w-full border rounded-lg p-2">
+    </div>
+    <div>
+      <label class="block text-sm font-semibold mb-1">Cooking style</label>
+      <div class="flex gap-6 text-sm">
+        <label class="flex items-center gap-2"><input type="radio" name="oil" value="yes" checked> With oil</label>
+        <label class="flex items-center gap-2"><input type="radio" name="oil" value="no"> Without oil</label>
+      </div>
+    </div>
+    <button id="recBtn" type="submit"
+      class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-400 text-white font-bold py-3 rounded-lg">Get Veg Recipes</button>
+    <div id="recError" class="hidden bg-red-50 border border-red-300 text-red-700 rounded-lg p-3 text-sm"></div>
+  </form>
+  <section class="space-y-4">
+    <div id="recPlaceholder" class="bg-white rounded-xl shadow p-8 text-center text-slate-400">Your recipes will appear here.</div>
+    <div id="recList" class="space-y-4"></div>
   </section>
 </main>
 
@@ -163,6 +198,66 @@ $("form").addEventListener("submit", async e => {
     setLoading(false);
   }
 });
+
+function showTab(t) {
+  const cal = t === "cal", on = "bg-emerald-600 text-white", off = "bg-white text-slate-700 shadow";
+  $("calorieView").classList.toggle("hidden", !cal);
+  $("recipeView").classList.toggle("hidden", cal);
+  $("tabCal").className = "px-4 py-2 rounded-lg font-semibold " + (cal ? on : off);
+  $("tabRec").className = "px-4 py-2 rounded-lg font-semibold " + (cal ? off : on);
+}
+$("tabCal").onclick = () => showTab("cal");
+$("tabRec").onclick = () => showTab("rec");
+
+function esc(s) { const d = document.createElement("div"); d.textContent = s ?? ""; return d.innerHTML; }
+
+function renderRecipes(r) {
+  $("recPlaceholder").classList.add("hidden");
+  const cards = (r.recipes || []).map(x => `
+    <div class="bg-white rounded-xl shadow p-5">
+      <div class="flex justify-between items-start gap-2">
+        <h2 class="font-bold text-lg">${esc(x.name)}</h2>
+        <span class="text-xs bg-emerald-100 text-emerald-700 rounded-full px-2 py-1 whitespace-nowrap">${esc(x.cookingTime)}</span>
+      </div>
+      <div class="text-xs text-slate-500 mb-2">${x.caloriesPerServing} kcal · ${x.proteinGrams} g protein per serving</div>
+      <div class="text-sm font-semibold">Ingredients</div>
+      <ul class="list-disc ml-5 text-sm mb-2">${(x.ingredientsNeeded || []).map(i => `<li>${esc(i)}</li>`).join("")}</ul>
+      <div class="text-sm font-semibold">Steps</div>
+      <ol class="list-decimal ml-5 text-sm space-y-1">${(x.steps || []).map(s => `<li>${esc(s)}</li>`).join("")}</ol>
+    </div>`).join("");
+  const tip = r.tip ? `<div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm">💡 ${esc(r.tip)}</div>` : "";
+  $("recList").innerHTML = cards + tip;
+}
+
+$("recForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  $("recError").classList.add("hidden");
+  $("recBtn").disabled = true;
+  $("recBtn").textContent = "AI Chef is cooking...";
+  try {
+        const res = await fetch(BACKEND_URL + "/api/diet/recipes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ingredients: $("ingredients").value.trim(),
+        servings: parseInt($("servings").value, 10),
+        useOil: document.querySelector('input[name="oil"]:checked').value === "yes"
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || "Server error (" + res.status + ")");
+    renderRecipes(data);
+  } catch (err) {
+    $("recError").textContent = err instanceof TypeError
+      ? "Cannot reach server. If it's on Render free tier, wait ~50s for wake-up and retry."
+      : err.message;
+    $("recError").classList.remove("hidden");
+  } finally {
+    $("recBtn").disabled = false;
+    $("recBtn").textContent = "Get Veg Recipes";
+  }
+});
+
 </script>
 </body>
 </html>
