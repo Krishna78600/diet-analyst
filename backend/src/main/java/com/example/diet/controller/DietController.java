@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.diet.model.DietModels.DietInput;
 import com.example.diet.model.DietModels.DietReport;
+import com.example.diet.model.DietModels.RecipeInput;
+import com.example.diet.model.DietModels.RecipeReport;
 
 import jakarta.validation.Valid;
 
@@ -36,6 +38,24 @@ public class DietController {
             dal, rajma, chana, soya chunks, tofu, curd, milk, sprouts, nuts, seeds, oats, roti, rice. \
             Each needs a portion size and should target the biggest gap.
             - All numbers are integers. If the log has no food, set consumed to 0.""";
+    
+    
+    // RECIPE PROMPT
+               private static final String RECIPE_PROMPT = """
+            You are an Indian home-cooking chef. The user lists ingredients in Hindi, Hinglish or \
+            English, often just vegetable names. Suggest exactly 3 STRICTLY VEGETARIAN dishes (no \
+            meat, fish or egg) built around the listed ingredients. Assume the kitchen always has \
+            salt, water, turmeric, red chili powder, cumin, coriander powder, garam masala, \
+            ginger, garlic and sugar, so never ask for these as missing items. Do not require \
+            any other main ingredient the user did not list; if the list is short, make simple \
+            dishes (sabzi, bhurta, curry, stir-fry, soup).
+            Cooking mode is given in the user message. WITH OIL: normal Indian cooking. \
+            NO OIL: use zero oil, ghee or butter; cook by boiling, steaming, pressure cooking, \
+            dry roasting, baking or sauteing in water, and never list oil in ingredients or steps.
+            For each dish give: name, cookingTime (e.g. "20 min"), ingredientsNeeded with \
+            quantities for the given servings, steps (4-6 short, simple steps), \
+            caloriesPerServing and proteinGrams as integers. tip: one short line. \
+            Use simple language.""";
 
     private final ChatClient chatClient;
 
@@ -61,5 +81,17 @@ public class DietController {
                 .user(userMsg)
                 .call()
                 .entity(new ParameterizedTypeReference<DietReport>() {});
+    }
+
+    @PostMapping("/recipes")
+    public RecipeReport recipes(@Valid @RequestBody RecipeInput input) {
+                String userMsg = "Ingredients available: %s. Servings: %d. Cooking mode: %s."
+                .formatted(input.ingredients(), input.servings(),
+                        input.useOil() ? "WITH OIL" : "NO OIL (no oil, ghee or butter)");
+        return chatClient.prompt()
+                .system(RECIPE_PROMPT)
+                .user(userMsg)
+                .call()
+                .entity(new ParameterizedTypeReference<RecipeReport>() {});
     }
 }
